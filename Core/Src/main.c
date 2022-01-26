@@ -35,7 +35,8 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "string.h" // это для функции strlen()
+#include <stdio.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -248,7 +249,27 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+//это стандартная запись для посимвольного вывода информации в интерфейс ITM в среде STM32CubeIDE
+//(должно быть в случае применения SWO)
+//https://www.youtube.com/watch?v=nE-YrKpWjso&list=PL9lkEHy8EJU8a_bqiJXwGTo-uM_cPa98P
+int __io_putchar(int ch)
+{
+	ITM_SendChar(ch);
+	return ch;
+}
 
+//или:
+
+//STM32: Отладка через SWO в STM32CubeIDE с доработкой ST-LINK
+//https://www.youtube.com/watch?v=ST_fUu6ACzE
+
+//int _write(int file, char *ptr, int len)
+ //{
+ //int i = 0;
+ //for(i = 0; i < len; i++)
+    //ITM_SendChar((*ptr++));
+ //return len;
+ //}
 /* USER CODE END 4 */
 
 /**
