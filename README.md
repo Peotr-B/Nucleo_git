@@ -12,7 +12,51 @@
  GitHub по адресу:
  https://github.com/Peotr-B/Nucleo_git.git
  
+ Этапы изучения (по аналогии с "FreeRTOS для чайников. Краткое описание"
+ http://easyelectronics.ru/freertos_manual.html)
+ 
+ 1. Задачи. Создание задач
+ 2. Очереди. Обмен данными между задачами
+ 3. Семафоры
+ 4. Mutex
+ 5. Системный таймер
+ 6. Диспетчер и Многозадачность
+ 7. Таймауты, обработка ошибок, и что же не так с прерываниями? Команда taskYIELD
+ 8. Работа freeRTOS с прерываниями
+ 9. Сопрограммы aka Co-Routines
+ 
  В ходе разработки использовалось:
+ 
+ STM32 + FreeRTOS
+ http://we.easyelectronics.ru/STM32/stm32-freertos.html
+ 
+ STM32CubeMx. Быстрый старт с FreeRTOS для STM32
+ https://microtechnics.ru/stm32cubemx-bystryj-start-s-freertos-dlya-stm32/
+ 
+ STM32 с нуля. FreeRTOS. Типы многозадачности, пример программы
+ https://microtechnics.ru/stm32-uchebnyj-kurs-freertos-chast-2/
+ 
+ STM32 с нуля. FreeRTOS. Кооперативная многозадачность
+ https://microtechnics.ru/stm32-uchebnyj-kurs-freertos-chast-3/
+ 
+ FreeRTOS: практическое применение
+ http://microsin.net/programming/arm/freertos-part1.html
+ http://microsin.net/programming/arm/freertos-part2.html
+ 
+ START: Создание проекта с STM32 Cube MX и FreeRTOS для Atollic TrueSTUDIO
+ http://www.milbestore.ru/article/sozdanie-proekta-s-stm32-cube-mx-i-freertos-dlya-atollic-truestudio
+ 
+ Создаем очереди на микроконтроллере STM32F103
+ https://texnohelp.com/freertos-stm32-lesson1/
+ 
+ STM32 и FreeRTOS. 1. Развлечение с потоками
+ https://habr.com/ru/post/249273/
+ 
+ STM32 и FreeRTOS. 2. Семафорим по-черному
+ https://habr.com/ru/post/249283/
+ 
+ STM32 и FreeRTOS. 3. Встаем в очередь
+ https://habr.com/ru/post/249381/
  
  RTOS: взаимодействие между задачами
  http://www.milbestore.ru/article/rtos-vzaimodejstvie-mezhdu-zadachami
