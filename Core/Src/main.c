@@ -17,6 +17,18 @@
   * Это исходный код. От него будут отходить различные ветки, сохраняемые в
   * GitHub по адресу:
   * https://github.com/Peotr-B/Nucleo_git.git
+  * Этот скетч основан на
+  * "Пример 11. Блокировка при отправке в очередь / отправка структур через очередь"
+  * в статье
+  * "FreeRTOS: практическое применение, часть 2 (управление очередями) "
+  * http://microsin.net/programming/arm/freertos-part2.html
+  * А также использовал:
+  * Лекция-практикум "SM32CubeIDE + FreeRTOS. Примеры задач, очереди, семафоров"
+  * и прилагаемый проект на GIT:
+  * https://www.youtube.com/redirect?event=video_description&redir_token=QUFFLUhqbDA0eVlLNmN5dlVnNzl1Qzh2RUo0NTZka3hyUXxBQ3Jtc0trcG51WGtHZlVfMlQ2ZDNPQTdpT1N5UzhLa0pWRlZOVjQ2RVdZZWNvbVJ3TG9rMGJWanRGcllfYy1mLW44bTQ0VmFRR2t5WGVrbjJnVHZsVjl1dGpQRkhudlVWcWRzSm84QWhMZmJZSlZMWnRHcWpFZw&q=https%3A%2F%2Fgithub.com%2FLeonidov%2FSTM32-Labs%2Ftree%2Fmaster%2FLab%25207%2520-%2520FreeRTOS
+  * лекция №7
+  * с учётом аналогичности функций xQueueSendToBack и osMessageQueuePut
+  * (первая - от RTOS, вторая - от CMSIS)
   *
   * Ещё см. READMY.md
   *
@@ -36,13 +48,21 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "string.h" // это для функции strlen()
+#include "string.h" //для функции strlen()
 #include <stdio.h>
+//#include "task.h"	//для работы с задачами
+//#include "queue.h"	//для работы с очередями
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-
+/* Определение типа для структуры, которая будет передаваться через очередь. */
+typedef struct
+{
+  unsigned char ucValue;
+  unsigned char ucSource;
+  //uint8_t ucSource;
+} xData;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -62,9 +82,50 @@ osThreadId_t defaultTaskHandle;
 const osThreadAttr_t defaultTask_attributes = {
   .name = "defaultTask",
   .stack_size = 128 * 4,
-  .priority = (osPriority_t) osPriorityNormal,
+  .priority = (osPriority_t) osPriorityNormal3,
+};
+/* Definitions for Sender1 */
+osThreadId_t Sender1Handle;
+const osThreadAttr_t Sender1_attributes = {
+  .name = "Sender1",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityNormal2,
+};
+/* Definitions for Receiver */
+osThreadId_t ReceiverHandle;
+const osThreadAttr_t Receiver_attributes = {
+  .name = "Receiver",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityNormal1,
+};
+/* Definitions for Sender2 */
+osThreadId_t Sender2Handle;
+const osThreadAttr_t Sender2_attributes = {
+  .name = "Sender2",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityNormal2,
+};
+/* Definitions for QueueData */
+osMessageQueueId_t QueueDataHandle;
+const osMessageQueueAttr_t QueueData_attributes = {
+  .name = "QueueData"
 };
 /* USER CODE BEGIN PV */
+
+/* Определение двух переменных, имеющих тип xData. Эти переменные
+   будут передаваться через очередь. */
+//static const xData xStructsToSend[ 2 ] =
+static xData xStructsToSend[ 2 ] =
+{
+		//{ 100, mainSENDER_1 }, /* Используется Sender1 (передатчик 1). */
+		//{ 200, mainSENDER_2 }  /* Используется Sender2 (передатчик 2). */
+
+		{ 100, 1 }, /* Используется Sender1 (передатчик 1). */
+		{ 200, 2 }  /* Используется Sender2 (передатчик 2). */
+};
+
+char trans_str[64] = {0,};
+int LED_State = 0;
 
 /* USER CODE END PV */
 
@@ -73,6 +134,8 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
 void StartDefaultTask(void *argument);
+void StartSender(void *argument);
+void StartReceiver(void *argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -131,6 +194,10 @@ int main(void)
   /* start timers, add new ones, ... */
   /* USER CODE END RTOS_TIMERS */
 
+  /* Create the queue(s) */
+  /* creation of QueueData */
+  QueueDataHandle = osMessageQueueNew (3, sizeof(xData), &QueueData_attributes);
+
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
   /* USER CODE END RTOS_QUEUES */
@@ -138,6 +205,15 @@ int main(void)
   /* Create the thread(s) */
   /* creation of defaultTask */
   defaultTaskHandle = osThreadNew(StartDefaultTask, NULL, &defaultTask_attributes);
+
+  /* creation of Sender1 */
+  Sender1Handle = osThreadNew(StartSender, &(xStructsToSend[0]), &Sender1_attributes);
+
+  /* creation of Receiver */
+  ReceiverHandle = osThreadNew(StartReceiver, NULL, &Receiver_attributes);
+
+  /* creation of Sender2 */
+  Sender2Handle = osThreadNew(StartSender, &(xStructsToSend[1]), &Sender2_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -331,9 +407,91 @@ void StartDefaultTask(void *argument)
   /* Infinite loop */
   for(;;)
   {
-    osDelay(1);
+	  HAL_GPIO_TogglePin(LD4_GPIO_Port, LD4_Pin);
+	  LED_State = HAL_GPIO_ReadPin(LD4_GPIO_Port, LD4_Pin);
+	  puts("LED_State меняет своё значение");
+	  printf("LED_State = %d.\n", LED_State);
+    osDelay(500);
   }
   /* USER CODE END 5 */
+}
+
+/* USER CODE BEGIN Header_StartSender */
+/**
+* @brief Function implementing the Sender1 thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartSender */
+void StartSender(void *argument)
+{
+  /* USER CODE BEGIN StartSender */
+  /* Infinite loop */
+  for(;;)
+  {
+	  
+	osMessageQueuePut(QueueDataHandle, argument, 0, osWaitForever);
+	
+    osDelay(1);		//Нужно ли? Видел без этого
+	
+	osThreadYield();
+  }
+  /* USER CODE END StartSender */
+}
+
+/* USER CODE BEGIN Header_StartReceiver */
+/**
+* @brief Function implementing the Receiver thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartReceiver */
+void StartReceiver(void *argument)
+{
+  /* USER CODE BEGIN StartReceiver */
+  xData xReceivedStructure;
+  osStatus_t status;
+  /* Infinite loop */
+  for(;;)
+  {
+	  status = osMessageQueueGet(QueueDataHandle, &xReceivedStructure, NULL, osWaitForever);
+	  
+	  if (status == osOK) 
+		/* Данные были успешно приняты из очереди, вывод принятого значения
+           и источника этого значения. */
+	  {
+		  //if( xReceivedStructure.ucSource == mainSENDER_1 )
+		  if( xReceivedStructure.ucSource == 1 )
+         {
+			//HAL_UART_Transmit(&huart2, (uint8_t*)msg.Buf, strlen(msg.Buf), osWaitForever);
+			//HAL_UART_Transmit(&huart2, "From Sender 1 = ", (uint8_t*)xReceivedStructure.ucValue, strlen(xReceivedStructure.ucValue), osWaitForever);
+            //vPrintStringAndNumber( "From Sender 1 = ", xReceivedStructure.ucValue );
+			
+			snprintf(trans_str, 63, "UART: From Sender 1 = %c \n", (unsigned char)xReceivedStructure.ucValue);
+			HAL_UART_Transmit(&huart2, (unsigned char*) trans_str,
+			strlen(trans_str), osWaitForever);
+			
+			printf("printf: From Sender 1 = %u.\n", (unsigned char)xReceivedStructure.ucValue);
+			puts("puts: Очередь работает правильно!");
+         }
+         else
+         {
+			//HAL_UART_Transmit(&huart2, "From Sender 2 = ", (uint8_t*)xReceivedStructure.ucValue, strlen(xReceivedStructure.ucValue), osWaitForever);
+            //vPrintStringAndNumber( "From Sender 2 = ", xReceivedStructure.ucValue );
+			
+			snprintf(trans_str, 63, "UART: From Sender 2 = %u \n", (uint8_t)xReceivedStructure.ucValue);
+			HAL_UART_Transmit(&huart2, (unsigned char*) trans_str,
+			strlen(trans_str), osWaitForever);
+			
+			printf("printf: From Sender 2 = %u.\n", (uint8_t)xReceivedStructure.ucValue);
+			puts("puts: Очередь работает правильно!");
+         }
+	  }
+	  
+    osDelay(1);		//Нужно ли? Видел без этого
+	osThreadYield();
+  }
+  /* USER CODE END StartReceiver */
 }
 
 /**
