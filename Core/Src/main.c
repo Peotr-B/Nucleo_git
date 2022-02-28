@@ -439,7 +439,7 @@ void StartSender(void *argument)
 	  
 	osMessageQueuePut(QueueDataHandle, argument, 0, osWaitForever);
 	
-    osDelay(1);		//Нужно ли? Видел без этого
+    //osDelay(1);		//Нужно ли? Видел без этого
 	
 	osThreadYield();
   }
@@ -495,7 +495,7 @@ void StartReceiver(void *argument)
          }
 	  }
 	  
-    osDelay(1);		//Нужно ли? Видел без этого
+    //osDelay(1);		//Нужно ли? Видел без этого
 	osThreadYield();
   }
   /* USER CODE END StartReceiver */
