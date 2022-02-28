@@ -19,10 +19,13 @@
   * https://github.com/Peotr-B/Nucleo_git.git
   *
   * ВНИМАНИЕ!!!
-  * После пересборки проекта портятся строки №217:
+  * После пересборки проекта портятся строки №220:
   * Sender1Handle = osThreadNew(StartSender, &(xStructsToSend[0]), &Sender1_attributes);
-  * и №223:
+  * и №226:
   * Sender2Handle = osThreadNew(StartSender, &(xStructsToSend[1]), &Sender2_attributes);
+  * Можно и так:
+  * Sender1Handle = osThreadNew(StartSender, (void*) &xStructsToSend[0], &Sender1_attributes);
+  * Sender2Handle = osThreadNew(StartSender, (void*) &(xStructsToSend[1]), &Sender2_attributes);
   *
   * Этот скетч основан на
   * "Пример 11. Блокировка при отправке в очередь / отправка структур через очередь"
@@ -214,13 +217,13 @@ int main(void)
   defaultTaskHandle = osThreadNew(StartDefaultTask, NULL, &defaultTask_attributes);
 
   /* creation of Sender1 */
-  Sender1Handle = osThreadNew(StartSender, &(xStructsToSend[0]), &Sender1_attributes);
+  Sender1Handle = osThreadNew(StartSender, (void*) &xStructsToSend[0], &Sender1_attributes);
 
   /* creation of Receiver */
   ReceiverHandle = osThreadNew(StartReceiver, NULL, &Receiver_attributes);
 
   /* creation of Sender2 */
-  Sender2Handle = osThreadNew(StartSender, &(xStructsToSend[1]), &Sender2_attributes);
+  Sender2Handle = osThreadNew(StartSender, (void*) &xStructsToSend[1], &Sender2_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
