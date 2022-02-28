@@ -17,6 +17,13 @@
   * Это исходный код. От него будут отходить различные ветки, сохраняемые в
   * GitHub по адресу:
   * https://github.com/Peotr-B/Nucleo_git.git
+  *
+  * ВНИМАНИЕ!!!
+  * После пересборки проекта портятся строки №217:
+  * Sender1Handle = osThreadNew(StartSender, &(xStructsToSend[0]), &Sender1_attributes);
+  * и №223:
+  * Sender2Handle = osThreadNew(StartSender, &(xStructsToSend[1]), &Sender2_attributes);
+  *
   * Этот скетч основан на
   * "Пример 11. Блокировка при отправке в очередь / отправка структур через очередь"
   * в статье
