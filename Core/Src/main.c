@@ -442,9 +442,13 @@ void StartSender(void *argument)
 	  
 	osMessageQueuePut(QueueDataHandle, argument, 0, osWaitForever);
 	
-    //osDelay(1);		//Нужно ли? Видел без этого
+    //osDelay(1);		//Нужно ли при наличии функции osThreadYield? Видел без этого
 	
 	osThreadYield();
+	//Проверить использование этой функции, см.:
+	//https://arm-software.github.io/CMSIS_5/RTOS2/html/group__CMSIS__RTOS__Message.html
+	//https://microtechnics.ru/stm32-uchebnyj-kurs-freertos-chast-3/
+	//https://russianblogs.com/article/88161192459/
   }
   /* USER CODE END StartSender */
 }
@@ -498,7 +502,7 @@ void StartReceiver(void *argument)
          }
 	  }
 	  
-    //osDelay(1);		//Нужно ли? Видел без этого
+    //osDelay(1);		//Нужно ли при наличии функции osThreadYield? Видел без этого
 	osThreadYield();
   }
   /* USER CODE END StartReceiver */
