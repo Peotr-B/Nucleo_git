@@ -6,7 +6,7 @@
   ******************************************************************************
   * @attention
   *
-  *26янв22
+  * 5мар22
   * @Biriuk
   * peotr60@mail.ru
   *
@@ -18,6 +18,7 @@
   * GitHub по адресу:
   * https://github.com/Peotr-B/Nucleo_git.git
   *
+  * Изучение семафоров
   * Ещё см. READMY.md
   *
   * Copyright (c) 2022 STMicroelectronics.
