@@ -19,6 +19,10 @@
   * https://github.com/Peotr-B/Nucleo_git.git
   *
   * Изучение семафоров
+  * За основу взял:
+  * STM Урок 104. FreeRTOS. Бинарные (двоичные) семафоры. Часть 2
+  * https://narodstream.ru/stm-urok-104-freertos-binarnye-semafory-chast-2/
+  *
   * Ещё см. READMY.md
   *
   * Copyright (c) 2022 STMicroelectronics.
