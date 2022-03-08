@@ -1,17 +1,22 @@
 # Nucleo_git
  STM32-Nucleo-github
 
- 18янв22
+ 018мар22
  @Biriuk
  peotr60@mail.ru
  
  Изучение микроконтроллера STM32 в среде STM32CubeIDE с помощью библиотеки HAL
  с использованием отладочной платы NUCLEO-L452RE-P
  
- Это исходная программа. От неё будут отходить различные ветки, сохраняемые в
- GitHub по адресу:
- https://github.com/Peotr-B/Nucleo_git.git
+  https://github.com/Peotr-B/Nucleo_git.git
  
+ Данный скетч создан при изучении бинарного семафора в FreeRTOS
+ За основу взят:
+ STM Урок 104. FreeRTOS. Бинарные (двоичные) семафоры. Часть 1, Часть 2
+ https://narodstream.ru/stm-urok-104-freertos-binarnye-semafory-chast-1/
+ В данном скетче семафор не позволяет реализоваться задаче Task2
+ Задача Default по обыкновению используется для контроля работы скетча (мигание светодиода)
+
  Этапы изучения (по аналогии с "FreeRTOS для чайников. Краткое описание"
  http://easyelectronics.ru/freertos_manual.html)
  

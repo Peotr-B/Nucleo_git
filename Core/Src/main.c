@@ -14,7 +14,6 @@
   * Изучение микроконтроллера STM32 в среде STM32CubeIDE с помощью библиотеки HAL
   * с использованием отладочной платы NUCLEO-L452RE-P
   *
-  * Это исходный код. От него будут отходить различные ветки, сохраняемые в
   * GitHub по адресу:
   * https://github.com/Peotr-B/Nucleo_git.git
   *
@@ -60,7 +59,7 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
-UART_HandleTypeDef huart2;
+ UART_HandleTypeDef huart2;
 
 /* Definitions for defaultTask */
 osThreadId_t defaultTaskHandle;
@@ -69,7 +68,34 @@ const osThreadAttr_t defaultTask_attributes = {
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
+/* Definitions for myTask02 */
+osThreadId_t myTask02Handle;
+const osThreadAttr_t myTask02_attributes = {
+  .name = "myTask02",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityLow,
+};
+/* Definitions for myTask01 */
+osThreadId_t myTask01Handle;
+const osThreadAttr_t myTask01_attributes = {
+  .name = "myTask01",
+  .stack_size = 512 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+/* Definitions for myBinarySem01 */
+osSemaphoreId_t myBinarySem01Handle;
+const osSemaphoreAttr_t myBinarySem01_attributes = {
+  .name = "myBinarySem01"
+};
 /* USER CODE BEGIN PV */
+//Мы добавили счётчик тиков таймера 2, который мы выбрали в качестве базового для ОС,
+//счётчик секунд, а также счетчик количества запущенных задач:
+volatile uint32_t TIM2_Count=0, TIM2_Count_Sec=0;
+char str1[64];
+volatile uint8_t tasks_started=0;
+uint32_t ncount1=0, ncount2=0;
+int LED_State = 0;
+int T_LED = 100;
 
 /* USER CODE END PV */
 
@@ -78,6 +104,8 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
 void StartDefaultTask(void *argument);
+void StartTask02(void *argument);
+void StartTask01(void *argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -128,6 +156,10 @@ int main(void)
   /* add mutexes, ... */
   /* USER CODE END RTOS_MUTEX */
 
+  /* Create the semaphores(s) */
+  /* creation of myBinarySem01 */
+  myBinarySem01Handle = osSemaphoreNew(1, 1, &myBinarySem01_attributes);
+
   /* USER CODE BEGIN RTOS_SEMAPHORES */
   /* add semaphores, ... */
   /* USER CODE END RTOS_SEMAPHORES */
@@ -143,6 +175,12 @@ int main(void)
   /* Create the thread(s) */
   /* creation of defaultTask */
   defaultTaskHandle = osThreadNew(StartDefaultTask, NULL, &defaultTask_attributes);
+
+  /* creation of myTask02 */
+  myTask02Handle = osThreadNew(StartTask02, NULL, &myTask02_attributes);
+
+  /* creation of myTask01 */
+  myTask01Handle = osThreadNew(StartTask01, NULL, &myTask01_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -182,6 +220,7 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
@@ -199,6 +238,7 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+
   /** Initializes the CPU, AHB and APB buses clocks
   */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
@@ -321,6 +361,50 @@ int __io_putchar(int ch)
  //return len;
  //}
 
+void PrintCounter(uint8_t ID_Task)
+{
+  //uint8_t i=0;
+  if (myBinarySem01Handle != NULL)
+    {
+      if(osSemaphoreAcquire(myBinarySem01Handle , 100) == osOK)
+
+    	  //osSemaphoreAcquire используется вместо osSemaphoreWait!
+    	  //см. https://arm--software-github-io.translate.goog/CMSIS_5/RTOS2/html/
+    	  //os2MigrationFunctions.html?_x_tr_sl=auto&_x_tr_tl=ru&_x_tr_hl=ru
+
+      {
+		  //i++;
+		  for(uint8_t i=1;i<=50;i++)
+		  {
+			if(ID_Task==1)
+			{
+			  sprintf(str1,"UART: Work Task1= %d\n",i);
+			  HAL_UART_Transmit(&huart2, (uint8_t*) str1, strlen(str1), 1000);
+			  printf("printf: Task1= %d\n", i);
+			  puts("puts: Work в Задаче №1");
+			}
+			else if(ID_Task==2)
+			{
+				sprintf(str1,"UART: Work Task2= %d\n",i);
+				HAL_UART_Transmit(&huart2, (uint8_t*) str1, strlen(str1), 1000);
+				printf("printf: Task2= %d\n", i);
+				puts("puts: Work в Задаче №2");
+			}
+			osDelay(500);
+		  }
+		  if(ID_Task==1)
+		  		  {
+		  			ncount1=0;
+		  		  }
+		  		  else if(ID_Task==2)
+		  		  {
+		  			ncount2=0;
+		  		  }
+		 osSemaphoreRelease(myBinarySem01Handle);
+	  }
+	}
+}
+
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartDefaultTask */
@@ -334,11 +418,74 @@ void StartDefaultTask(void *argument)
 {
   /* USER CODE BEGIN 5 */
   /* Infinite loop */
+	for (;;)
+	{
+		HAL_GPIO_TogglePin(LD4_GPIO_Port, LD4_Pin);
+		LED_State = HAL_GPIO_ReadPin(LD4_GPIO_Port, LD4_Pin);
+
+		//snprintf в stm32:
+		//https://eax.me/stm32-spi-flash/
+		snprintf(str1, sizeof(str1),
+				"UART: RTOS  работает правильно! \n\r");
+		//https://istarik.ru/blog/stm32/113.html
+		HAL_UART_Transmit(&huart2, (uint8_t*) str1, strlen(str1),
+				100);
+		printf("RTOS (printf): режим LED\r");
+		puts("RTOS (puts): режим LED\r");
+
+		osDelay(T_LED);
+	}
+  /* USER CODE END 5 */
+}
+
+/* USER CODE BEGIN Header_StartTask02 */
+/**
+* @brief Function implementing the myTask02 thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartTask02 */
+void StartTask02(void *argument)
+{
+  /* USER CODE BEGIN StartTask02 */
+	tasks_started++;
+  /* Infinite loop */
   for(;;)
   {
+	  ncount2++;
+	  sprintf(str1,"Wait Task2= %lu\n",ncount2);
+	  HAL_UART_Transmit(&huart2, (uint8_t*) str1, strlen(str1), 1000);
+	  printf("printf: Wait в Task2= %lu\n", ncount2);
+	  puts("puts: Wait в Задаче №2");
+	  PrintCounter(1);
     osDelay(1);
   }
-  /* USER CODE END 5 */
+  /* USER CODE END StartTask02 */
+}
+
+/* USER CODE BEGIN Header_StartTask01 */
+/**
+* @brief Function implementing the myTask01 thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartTask01 */
+void StartTask01(void *argument)
+{
+  /* USER CODE BEGIN StartTask01 */
+	tasks_started++;
+  /* Infinite loop */
+  for(;;)
+  {
+	  ncount1++;
+	  sprintf(str1,"Wait Task1= %lu\n",ncount1);
+	  HAL_UART_Transmit(&huart2, (uint8_t*) str1, strlen(str1), 1000);
+	  printf("printf: Wait в Task1= %lu\n", ncount1);
+	  puts("puts: Wait в Задаче №1");
+	  PrintCounter(1);
+    osDelay(1);
+  }
+  /* USER CODE END StartTask01 */
 }
 
 /**
@@ -358,7 +505,19 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     HAL_IncTick();
   }
   /* USER CODE BEGIN Callback 1 */
-
+  if(tasks_started>=2)
+    {
+      TIM2_Count++;
+      if(TIM2_Count%1000==0)
+      {
+        TIM2_Count_Sec++;
+        sprintf(str1," T= %lu\n",TIM2_Count_Sec);
+        HAL_UART_Transmit(&huart2, (uint8_t*) str1, strlen(str1), 1000);
+        printf("printf: TIM2_Count_Sec = %lu\n", TIM2_Count_Sec);
+        puts("puts: Время в секундах");
+      }
+      if(TIM2_Count>=10000000) TIM2_Count=0;
+    }
   /* USER CODE END Callback 1 */
 }
 
@@ -393,4 +552,3 @@ void assert_failed(uint8_t *file, uint32_t line)
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */
-
