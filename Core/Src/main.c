@@ -110,7 +110,9 @@ const osMutexAttr_t myMutex01_attributes = {
   .name = "myMutex01"
 };
 /* USER CODE BEGIN PV */
-
+char str1[64];
+int LED_State = 0;
+int T_LED = 200;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -187,6 +189,18 @@ int main(void)
 
   /* Create the thread(s) */
   /* creation of defaultTask */
+
+  if (!myMutex01Handle)
+  	  printf("Mutex can not be created!\n\r");
+
+/*
+	if (myMutex01Handle)
+	{
+		printf("Mutex created!\n\r");
+	}
+	else
+		printf("Mutex can not be created!\n\r");
+*/
   defaultTaskHandle = osThreadNew(StartDefaultTask, NULL, &defaultTask_attributes);
 
   /* creation of Task1 */
@@ -387,10 +401,29 @@ void StartDefaultTask(void *argument)
 {
   /* USER CODE BEGIN 5 */
   /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1);
-  }
+	for (;;) {
+		HAL_GPIO_TogglePin(LD4_GPIO_Port, LD4_Pin);
+		LED_State = HAL_GPIO_ReadPin(LD4_GPIO_Port, LD4_Pin);
+
+		//snprintf в stm32:
+		//https://eax.me/stm32-spi-flash/
+		snprintf(str1, sizeof(str1), "UART: RTOS  работает правильно! \n\r");
+		//https://istarik.ru/blog/stm32/113.html
+		HAL_UART_Transmit(&huart2, (uint8_t*) str1, strlen(str1), 100);
+		printf("RTOS (printf): режим LED\r");
+		puts("RTOS (puts): режим LED\n\r");
+
+/*
+		if (myMutex01Handle)
+		  		{
+			  printf("Mutex created!\n\r");
+		  		}
+		else
+			printf("Mutex can not be created!\n\r");
+		*/
+
+		osDelay(T_LED);
+	}
   /* USER CODE END 5 */
 }
 
@@ -405,10 +438,21 @@ void StartTask1(void *argument)
 {
   /* USER CODE BEGIN StartTask1 */
   /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1);
-  }
+	for (;;)
+	{
+		//osMutexId_t myMutex01Handle;
+		if (osMutexAcquire(myMutex01Handle, osWaitForever) == osOK)
+		{
+			sprintf(str1, "UART: Hi from Task1\n");
+			HAL_UART_Transmit(&huart2, (uint8_t*) str1, strlen(str1), 1000);
+			printf("printf: Hi from Task1\n");
+			puts("puts: Hi from Task1\n");
+
+			osMutexRelease (myMutex01Handle);
+
+		}
+		osDelay(T_LED*5);
+	}
   /* USER CODE END StartTask1 */
 }
 
@@ -419,15 +463,22 @@ void StartTask1(void *argument)
 * @retval None
 */
 /* USER CODE END Header_StartTask2 */
-void StartTask2(void *argument)
-{
-  /* USER CODE BEGIN StartTask2 */
-  /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1);
-  }
-  /* USER CODE END StartTask2 */
+void StartTask2(void *argument) {
+	/* USER CODE BEGIN StartTask2 */
+	/* Infinite loop */
+	for (;;) {
+		if (osMutexAcquire(myMutex01Handle, osWaitForever) == osOK) {
+			sprintf(str1, "UART: Hi from Task2\n");
+			HAL_UART_Transmit(&huart2, (uint8_t*) str1, strlen(str1), 1000);
+			printf("printf: Hi from Task2\n");
+			puts("puts: Hi from Task2\n");
+
+			osMutexRelease(myMutex01Handle);
+
+		}
+		osDelay(T_LED*5);
+	}
+	/* USER CODE END StartTask2 */
 }
 
 /**
