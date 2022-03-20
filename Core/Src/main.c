@@ -84,6 +84,13 @@ const osThreadAttr_t defaultTask_attributes = {
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
+/* Definitions for Task_Timer */
+osThreadId_t Task_TimerHandle;
+const osThreadAttr_t Task_Timer_attributes = {
+  .name = "Task_Timer",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
 /* Definitions for osProgTimer1 */
 osTimerId_t osProgTimer1Handle;
 const osTimerAttr_t osProgTimer1_attributes = {
@@ -97,7 +104,7 @@ const osTimerAttr_t osProgTimer2_attributes = {
 /* USER CODE BEGIN PV */
 char str1[64];
 int LED_State = 0;
-int T_LED = 200;
+int T_LED = 1000;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -105,6 +112,7 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
 void StartDefaultTask(void *argument);
+void StartTask_Timer(void *argument);
 void CallbackTimer1(void *argument);
 void CallbackTimer2(void *argument);
 
@@ -179,6 +187,9 @@ int main(void)
   /* Create the thread(s) */
   /* creation of defaultTask */
   defaultTaskHandle = osThreadNew(StartDefaultTask, NULL, &defaultTask_attributes);
+
+  /* creation of Task_Timer */
+  Task_TimerHandle = osThreadNew(StartTask_Timer, NULL, &Task_Timer_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
     /* add threads, ... */
@@ -399,40 +410,61 @@ void StartDefaultTask(void *argument)
   /* USER CODE END 5 */
 }
 
+/* USER CODE BEGIN Header_StartTask_Timer */
+/**
+* @brief Function implementing the Task_Timer thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartTask_Timer */
+void StartTask_Timer(void *argument)
+    {
+    /* USER CODE BEGIN StartTask_Timer */
+    osTimerStart(osProgTimer1Handle, 100);
+    osTimerStart(osProgTimer2Handle, 200);
+    /* Infinite loop */
+    for (;;)
+	{
+	osDelay(1);
+	}
+    /* USER CODE END StartTask_Timer */
+    }
+
 /* CallbackTimer1 function */
 void CallbackTimer1(void *argument)
-    {
-    /* USER CODE BEGIN CallbackTimer1 */
+{
+  /* USER CODE BEGIN CallbackTimer1 */
     (void) argument;
     static uint32_t tim_cnt = 0;
 
     snprintf(str1, sizeof(str1), "UART: Timer1 = %lu\n\r",tim_cnt);
     //https://istarik.ru/blog/stm32/113.html
     HAL_UART_Transmit(&huart2, (uint8_t*) str1, strlen(str1), 100);
-    printf("printf: режим Timer1\r");
+    printf("printf: режим Timer1 = %lu\n\r",tim_cnt);
     puts("puts: режим Timer1\n\r");
+    //puts("puts: режим Timer1 = %lu\n\r",tim_cnt);
 
     tim_cnt++;
-    /* USER CODE END CallbackTimer1 */
-    }
+  /* USER CODE END CallbackTimer1 */
+}
 
 /* CallbackTimer2 function */
 void CallbackTimer2(void *argument)
-    {
-    /* USER CODE BEGIN CallbackTimer2 */
+{
+  /* USER CODE BEGIN CallbackTimer2 */
     (void) argument;
     static uint32_t tim_cnt = 0;
 
     snprintf(str1, sizeof(str1), "UART: Timer2 = %lu\n\r", tim_cnt);
     //https://istarik.ru/blog/stm32/113.html
     HAL_UART_Transmit(&huart2, (uint8_t*) str1, strlen(str1), 100);
-    printf("printf: режим Timer2\r");
+    printf("printf: режим Timer2 = %lu\n\r",tim_cnt);
     puts("puts: режим Timer2\n\r");
 
     tim_cnt++;
 
-    /* USER CODE END CallbackTimer2 */
-    }
+  /* USER CODE END CallbackTimer2 */
+}
 
 /**
   * @brief  Period elapsed callback in non blocking mode
