@@ -1,34 +1,54 @@
 /* USER CODE BEGIN Header */
 /**
-  ******************************************************************************
-  * @file           : main.c
-  * @brief          : Main program body
-  ******************************************************************************
-  * @attention
-  *
-  *26янв22
-  * @Biriuk
-  * peotr60@mail.ru
-  *
-  * Nucleo_git
-  * Изучение микроконтроллера STM32 в среде STM32CubeIDE с помощью библиотеки HAL
-  * с использованием отладочной платы NUCLEO-L452RE-P
-  *
-  * Это исходный код. От него будут отходить различные ветки, сохраняемые в
-  * GitHub по адресу:
-  * https://github.com/Peotr-B/Nucleo_git.git
-  *
-  * Ещё см. READMY.md
-  *
-  * Copyright (c) 2022 STMicroelectronics.
-  * All rights reserved.
-  *
-  * This software is licensed under terms that can be found in the LICENSE file
-  * in the root directory of this software component.
-  * If no LICENSE file comes with this software, it is provided AS-IS.
-  *
-  ******************************************************************************
-  */
+ ******************************************************************************
+ * @file           : main.c
+ * @brief          : Main program body
+ ******************************************************************************
+ * @attention
+ *
+ * 20мар22
+ * @Biriuk
+ * peotr60@mail.ru
+ *
+ * Nucleo_git
+ * Изучение микроконтроллера STM32 в среде STM32CubeIDE с помощью библиотеки HAL
+ * с использованием отладочной платы NUCLEO-L452RE-P
+ *
+ * ВВетка osTimer, на которой расположен код для изучения мьютексов, сохраняемая в
+ * GitHub по адресу:
+ * https://github.com/Peotr-B/Nucleo_git.git
+ *
+ * За основу взяты следующие материалы:
+ *
+ * STM Урок 112. FreeRTOS. Таймеры
+ * https://narodstream.ru/stm-urok-112-freertos-tajmery/
+ *
+ * CMSIS-RTOS ДЛЯ МИКРОКОНТРОЛЛЕРОВ С ЯДРОМ CORTEX-M3
+ * http://repo.ssau.ru/bitstream/Metodicheskie-izdaniya/CMSISRTOS-dlya-mikrokontrollerov-s-yadrom-CortexM3-metod-ukazaniya-k-lab-rabote-Tekst-elektronnyi-87343/1/CMSIS-RTOS%20%D0%B4%D0%BB%D1%8F%20%D0%BC%D0%B8%D0%BA%D1%80%D0%BE%D0%BA%D0%BE%D0%BD%D1%82%D1%80%D0%BE%D0%BB%D0%BB%D0%B5%D1%80%D0%BE%D0%B2%20%D1%81%20%D1%8F%D0%B4%D1%80%D0%BE%D0%BC%202020.pdf
+ *
+ * Кармин Новиелло Освоение STM32
+ * https://studfile.net/download.php?id=16485874&code=c62f016261edda346d8eeb9ceb166bd8&download-status=process0001
+ *
+ * Developing Applications on STM32Cube with RTOS
+ * http://pro-interes.com/wp-content/uploads/2020/02/Developing-Applications-on-STM32Cube-with-RTOS-Rus.pdf
+ *
+ * Планировщик задач для ARM Cortex-M3
+ * https://kit-e.ru/assets/files/pdf/2013_04_168.pdf
+ *
+ * FreeRTOS: практическое применение, часть 4 (управление ресурсами)
+ * http://microsin.net/programming/arm/freertos-part4.html
+ *
+ * Ещё см. READMY.md
+ *
+ * Copyright (c) 2022 STMicroelectronics.
+ * All rights reserved.
+ *
+ * This software is licensed under terms that can be found in the LICENSE file
+ * in the root directory of this software component.
+ * If no LICENSE file comes with this software, it is provided AS-IS.
+ *
+ ******************************************************************************
+ */
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
@@ -55,7 +75,7 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
-UART_HandleTypeDef huart2;
+ UART_HandleTypeDef huart2;
 
 /* Definitions for defaultTask */
 osThreadId_t defaultTaskHandle;
@@ -64,8 +84,20 @@ const osThreadAttr_t defaultTask_attributes = {
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
+/* Definitions for osProgTimer1 */
+osTimerId_t osProgTimer1Handle;
+const osTimerAttr_t osProgTimer1_attributes = {
+  .name = "osProgTimer1"
+};
+/* Definitions for osProgTimer2 */
+osTimerId_t osProgTimer2Handle;
+const osTimerAttr_t osProgTimer2_attributes = {
+  .name = "osProgTimer2"
+};
 /* USER CODE BEGIN PV */
-
+char str1[64];
+int LED_State = 0;
+int T_LED = 200;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -73,6 +105,8 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
 void StartDefaultTask(void *argument);
+void CallbackTimer1(void *argument);
+void CallbackTimer2(void *argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -120,19 +154,26 @@ int main(void)
   osKernelInitialize();
 
   /* USER CODE BEGIN RTOS_MUTEX */
-  /* add mutexes, ... */
+    /* add mutexes, ... */
   /* USER CODE END RTOS_MUTEX */
 
   /* USER CODE BEGIN RTOS_SEMAPHORES */
-  /* add semaphores, ... */
+    /* add semaphores, ... */
   /* USER CODE END RTOS_SEMAPHORES */
 
+  /* Create the timer(s) */
+  /* creation of osProgTimer1 */
+  osProgTimer1Handle = osTimerNew(CallbackTimer1, osTimerPeriodic, NULL, &osProgTimer1_attributes);
+
+  /* creation of osProgTimer2 */
+  osProgTimer2Handle = osTimerNew(CallbackTimer2, osTimerPeriodic, NULL, &osProgTimer2_attributes);
+
   /* USER CODE BEGIN RTOS_TIMERS */
-  /* start timers, add new ones, ... */
+    /* start timers, add new ones, ... */
   /* USER CODE END RTOS_TIMERS */
 
   /* USER CODE BEGIN RTOS_QUEUES */
-  /* add queues, ... */
+    /* add queues, ... */
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
@@ -140,11 +181,11 @@ int main(void)
   defaultTaskHandle = osThreadNew(StartDefaultTask, NULL, &defaultTask_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
-  /* add threads, ... */
+    /* add threads, ... */
   /* USER CODE END RTOS_THREADS */
 
   /* USER CODE BEGIN RTOS_EVENTS */
-  /* add events, ... */
+    /* add events, ... */
   /* USER CODE END RTOS_EVENTS */
 
   /* Start scheduler */
@@ -153,12 +194,12 @@ int main(void)
   /* We should never get here as control is now taken by the scheduler */
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  while (1)
-  {
+    while (1)
+	{
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-  }
+	}
   /* USER CODE END 3 */
 }
 
@@ -177,6 +218,7 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
@@ -194,6 +236,7 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+
   /** Initializes the CPU, AHB and APB buses clocks
   */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
@@ -298,10 +341,10 @@ static void MX_GPIO_Init(void)
 //(должно быть в случае применения SWO)
 //https://www.youtube.com/watch?v=nE-YrKpWjso&list=PL9lkEHy8EJU8a_bqiJXwGTo-uM_cPa98P
 int __io_putchar(int ch)
-{
-	ITM_SendChar(ch);
-	return ch;
-}
+    {
+    ITM_SendChar(ch);
+    return ch;
+    }
 
 //или:
 
@@ -309,32 +352,87 @@ int __io_putchar(int ch)
 //https://www.youtube.com/watch?v=ST_fUu6ACzE
 
 //int _write(int file, char *ptr, int len)
- //{
- //int i = 0;
- //for(i = 0; i < len; i++)
-    //ITM_SendChar((*ptr++));
- //return len;
- //}
+//{
+//int i = 0;
+//for(i = 0; i < len; i++)
+//ITM_SendChar((*ptr++));
+//return len;
+//}
 
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartDefaultTask */
 /**
-  * @brief  Function implementing the defaultTask thread.
-  * @param  argument: Not used
-  * @retval None
-  */
+ * @brief  Function implementing the defaultTask thread.
+ * @param  argument: Not used
+ * @retval None
+ */
 /* USER CODE END Header_StartDefaultTask */
 void StartDefaultTask(void *argument)
 {
   /* USER CODE BEGIN 5 */
-  /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1);
-  }
+    /* Infinite loop */
+    for (;;)
+	{
+	HAL_GPIO_TogglePin(LD4_GPIO_Port, LD4_Pin);
+	LED_State = HAL_GPIO_ReadPin(LD4_GPIO_Port, LD4_Pin);
+
+	//snprintf в stm32:
+	//https://eax.me/stm32-spi-flash/
+	snprintf(str1, sizeof(str1), "UART: RTOS osProgTimer\n\r");
+	//https://istarik.ru/blog/stm32/113.html
+	HAL_UART_Transmit(&huart2, (uint8_t*) str1, strlen(str1), 100);
+	printf("RTOS (printf): режим LED\r");
+	puts("RTOS (puts): режим LED\n\r");
+
+	/*
+	 if (myMutex01Handle)
+	 {
+	 printf("Mutex created!\n\r");
+	 }
+	 else
+	 printf("Mutex can not be created!\n\r");
+	 */
+
+	osDelay(T_LED);
+	}
   /* USER CODE END 5 */
 }
+
+/* CallbackTimer1 function */
+void CallbackTimer1(void *argument)
+    {
+    /* USER CODE BEGIN CallbackTimer1 */
+    (void) argument;
+    static uint32_t tim_cnt = 0;
+
+    snprintf(str1, sizeof(str1), "UART: Timer1 = %lu\n\r",tim_cnt);
+    //https://istarik.ru/blog/stm32/113.html
+    HAL_UART_Transmit(&huart2, (uint8_t*) str1, strlen(str1), 100);
+    printf("printf: режим Timer1\r");
+    puts("puts: режим Timer1\n\r");
+
+    tim_cnt++;
+    /* USER CODE END CallbackTimer1 */
+    }
+
+/* CallbackTimer2 function */
+void CallbackTimer2(void *argument)
+    {
+    /* USER CODE BEGIN CallbackTimer2 */
+    (void) argument;
+    static uint32_t tim_cnt = 0;
+
+    snprintf(str1, sizeof(str1), "UART: Timer2 = %lu\n\r", tim_cnt);
+    //https://istarik.ru/blog/stm32/113.html
+    HAL_UART_Transmit(&huart2, (uint8_t*) str1, strlen(str1), 100);
+    printf("printf: режим Timer2\r");
+    puts("puts: режим Timer2\n\r");
+
+    tim_cnt++;
+
+    /* USER CODE END CallbackTimer2 */
+    }
 
 /**
   * @brief  Period elapsed callback in non blocking mode
@@ -364,11 +462,11 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
-  /* User can add his own implementation to report the HAL error return state */
-  __disable_irq();
-  while (1)
-  {
-  }
+    /* User can add his own implementation to report the HAL error return state */
+    __disable_irq();
+    while (1)
+	{
+	}
   /* USER CODE END Error_Handler_Debug */
 }
 
@@ -388,4 +486,3 @@ void assert_failed(uint8_t *file, uint32_t line)
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */
-
