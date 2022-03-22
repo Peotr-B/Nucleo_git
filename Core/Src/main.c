@@ -6,7 +6,7 @@
   ******************************************************************************
   * @attention
   *
-  *26янв22
+  *22мар22
   * @Biriuk
   * peotr60@mail.ru
   *
@@ -14,9 +14,30 @@
   * Изучение микроконтроллера STM32 в среде STM32CubeIDE с помощью библиотеки HAL
   * с использованием отладочной платы NUCLEO-L452RE-P
   *
-  * Это исходный код. От него будут отходить различные ветки, сохраняемые в
-  * GitHub по адресу:
+  * Рассмотрен многозадачность в среде CMSIS-RTOS2
+  * В данном случае корпоративная многозадачность (co-operative multitasking)
+  *
+  * Это код сохраняеется в GitHub по адресу:
   * https://github.com/Peotr-B/Nucleo_git.git
+  *
+  * За основу взят материал:
+  * STM32 с нуля. FreeRTOS. Кооперативная многозадачность
+  * https://microtechnics.ru/stm32-uchebnyj-kurs-freertos-chast-3/
+  *
+  * а также:
+  *
+  * FreeRTOS для чайников. Краткое описание
+  * http://easyelectronics.ru/freertos_manual.html
+  *
+  * [STM32L4] Очередь сообщений FreeRTOS для приема и отправки трех последовательных портов
+  * https://russianblogs.com/article/88161192459/
+  *
+  * Использование CMSIS-RTOS
+  * https://russianblogs.com/article/8958290203/
+  *
+  * FreeRTOS Приоритизация и алгоритмы управления диспетчером задач. Вытесняющий и кооперативный режимы
+  * https://www.youtube.com/watch?v=VuyL0sCVPk8
+  *
   *
   * Ещё см. READMY.md
   *
@@ -65,7 +86,9 @@ const osThreadAttr_t defaultTask_attributes = {
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* USER CODE BEGIN PV */
-
+char str1[64];
+int LED_State = 0;
+int T_LED = 200;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -326,15 +349,27 @@ int __io_putchar(int ch)
   */
 /* USER CODE END Header_StartDefaultTask */
 void StartDefaultTask(void *argument)
-{
-  /* USER CODE BEGIN 5 */
-  /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1);
-  }
-  /* USER CODE END 5 */
-}
+    {
+    /* USER CODE BEGIN 5 */
+    /* Infinite loop */
+    for (;;)
+	{
+	HAL_GPIO_TogglePin(LD4_GPIO_Port, LD4_Pin);
+	LED_State = HAL_GPIO_ReadPin(LD4_GPIO_Port, LD4_Pin);
+
+	//snprintf в stm32:
+	//https://eax.me/stm32-spi-flash/
+	snprintf(str1, sizeof(str1), "UART: RTOS osProgTimer\n\r");
+	//https://istarik.ru/blog/stm32/113.html
+	HAL_UART_Transmit(&huart2, (uint8_t*) str1, strlen(str1), 100);
+	printf("printf: LED_State = %d\n\r",LED_State);
+	puts("RTOS (puts): режим LED\n\r");
+	//puts("puts: режим Timer1 = %lu\n\r",tim_cnt); //так не работает!
+
+	osDelay(T_LED);
+	}
+    /* USER CODE END 5 */
+    }
 
 /**
   * @brief  Period elapsed callback in non blocking mode
