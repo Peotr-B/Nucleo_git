@@ -24,6 +24,9 @@
   * STM32 с нуля. FreeRTOS. Кооперативная многозадачность
   * https://microtechnics.ru/stm32-uchebnyj-kurs-freertos-chast-3/
   *
+  * Функция библиотеки STM32CubeIDE HAL управляет часами реального времени RTC и прерыванием сигнала тревоги таймера
+  * https://russianblogs.com/article/7849848366/
+  *
   * а также:
   *
   * FreeRTOS для чайников. Краткое описание
@@ -76,25 +79,29 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+ RTC_HandleTypeDef hrtc;
+
 UART_HandleTypeDef huart2;
 
 /* Definitions for defaultTask */
 osThreadId_t defaultTaskHandle;
 const osThreadAttr_t defaultTask_attributes = {
   .name = "defaultTask",
-  .stack_size = 128 * 4,
+  .stack_size = 256 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* USER CODE BEGIN PV */
 char str1[64];
 int LED_State = 0;
 int T_LED = 200;
+int v_Hours, v_Minutes, v_Seconds;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
+static void MX_RTC_Init(void);
 void StartDefaultTask(void *argument);
 
 /* USER CODE BEGIN PFP */
@@ -135,6 +142,7 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_USART2_UART_Init();
+  MX_RTC_Init();
   /* USER CODE BEGIN 2 */
 
   /* USER CODE END 2 */
@@ -200,10 +208,17 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+
+  /** Configure LSE Drive Capability
+  */
+  HAL_PWR_EnableBkUpAccess();
+  __HAL_RCC_LSEDRIVE_CONFIG(RCC_LSEDRIVE_LOW);
+
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI|RCC_OSCILLATORTYPE_LSE;
+  RCC_OscInitStruct.LSEState = RCC_LSE_ON;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
@@ -217,6 +232,7 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+
   /** Initializes the CPU, AHB and APB buses clocks
   */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
@@ -230,6 +246,70 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+}
+
+/**
+  * @brief RTC Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_RTC_Init(void)
+{
+
+  /* USER CODE BEGIN RTC_Init 0 */
+
+  /* USER CODE END RTC_Init 0 */
+
+  RTC_TimeTypeDef sTime = {0};
+  RTC_DateTypeDef sDate = {0};
+
+  /* USER CODE BEGIN RTC_Init 1 */
+
+  /* USER CODE END RTC_Init 1 */
+
+  /** Initialize RTC Only
+  */
+  hrtc.Instance = RTC;
+  hrtc.Init.HourFormat = RTC_HOURFORMAT_24;
+  hrtc.Init.AsynchPrediv = 127;
+  hrtc.Init.SynchPrediv = 255;
+  hrtc.Init.OutPut = RTC_OUTPUT_DISABLE;
+  hrtc.Init.OutPutRemap = RTC_OUTPUT_REMAP_NONE;
+  hrtc.Init.OutPutPolarity = RTC_OUTPUT_POLARITY_HIGH;
+  hrtc.Init.OutPutType = RTC_OUTPUT_TYPE_OPENDRAIN;
+  if (HAL_RTC_Init(&hrtc) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /* USER CODE BEGIN Check_RTC_BKUP */
+
+  /* USER CODE END Check_RTC_BKUP */
+
+  /** Initialize RTC and set the Time and Date
+  */
+  sTime.Hours = 0x0;
+  sTime.Minutes = 0x0;
+  sTime.Seconds = 0x0;
+  sTime.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
+  sTime.StoreOperation = RTC_STOREOPERATION_RESET;
+  if (HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BCD) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sDate.WeekDay = RTC_WEEKDAY_MONDAY;
+  sDate.Month = RTC_MONTH_JANUARY;
+  sDate.Date = 0x1;
+  sDate.Year = 0x0;
+
+  if (HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BCD) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN RTC_Init 2 */
+
+  /* USER CODE END RTC_Init 2 */
+
 }
 
 /**
@@ -349,13 +429,36 @@ int __io_putchar(int ch)
   */
 /* USER CODE END Header_StartDefaultTask */
 void StartDefaultTask(void *argument)
-    {
-    /* USER CODE BEGIN 5 */
+{
+  /* USER CODE BEGIN 5 */
+    RTC_TimeTypeDef nTime;
+
+    nTime.Hours = 0x0;
+    nTime.Minutes = 0x0;
+    nTime.Seconds = 0x0;
+    //HAL_RTC_SetTime(&hrtc,&nTime,RTC_FORMAT_BIN);
+    HAL_RTC_SetTime(&hrtc,&nTime,RTC_FORMAT_BCD);
+
     /* Infinite loop */
     for (;;)
 	{
 	HAL_GPIO_TogglePin(LD4_GPIO_Port, LD4_Pin);
 	LED_State = HAL_GPIO_ReadPin(LD4_GPIO_Port, LD4_Pin);
+
+	 // Получаем время работы программы в часовом формате:
+	//HAL_RTC_GetTime(&hrtc,&nTime,RTC_FORMAT_BIN);
+	HAL_RTC_GetTime(&hrtc,&nTime,RTC_FORMAT_BCD);
+
+	v_Hours = nTime.Hours;
+	v_Minutes = nTime.Minutes;
+	v_Seconds = nTime.Seconds;
+
+	printf("Time--%d:%d:%d\r\n",nTime.Hours,nTime.Minutes,nTime.Seconds);
+
+	snprintf(str1, sizeof(str1), "Time %d:%d:%d\n", nTime.Hours, nTime.Minutes, nTime.Seconds);
+	HAL_UART_Transmit(&huart2, (uint8_t*)str1, strlen(str1), 1000);
+
+	osDelay(100);
 
 	//snprintf в stm32:
 	//https://eax.me/stm32-spi-flash/
@@ -368,8 +471,8 @@ void StartDefaultTask(void *argument)
 
 	osDelay(T_LED);
 	}
-    /* USER CODE END 5 */
-    }
+  /* USER CODE END 5 */
+}
 
 /**
   * @brief  Period elapsed callback in non blocking mode
@@ -423,4 +526,3 @@ void assert_failed(uint8_t *file, uint32_t line)
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */
-
