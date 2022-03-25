@@ -94,7 +94,8 @@ const osThreadAttr_t defaultTask_attributes = {
 char str1[64];
 int LED_State = 0;
 int T_LED = 200;
-int v_Hours, v_Minutes, v_Seconds;
+//int v_Hours, v_Minutes, v_Seconds;	//Переменные для проверки в режиме отладки
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -288,21 +289,21 @@ static void MX_RTC_Init(void)
 
   /** Initialize RTC and set the Time and Date
   */
-  sTime.Hours = 0x0;
-  sTime.Minutes = 0x0;
-  sTime.Seconds = 0x0;
+  sTime.Hours = 0;
+  sTime.Minutes = 0;
+  sTime.Seconds = 0;
   sTime.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
   sTime.StoreOperation = RTC_STOREOPERATION_RESET;
-  if (HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BCD) != HAL_OK)
+  if (HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BIN) != HAL_OK)
   {
     Error_Handler();
   }
   sDate.WeekDay = RTC_WEEKDAY_MONDAY;
   sDate.Month = RTC_MONTH_JANUARY;
-  sDate.Date = 0x1;
-  sDate.Year = 0x0;
+  sDate.Date = 1;
+  sDate.Year = 0;
 
-  if (HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BCD) != HAL_OK)
+  if (HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BIN) != HAL_OK)
   {
     Error_Handler();
   }
@@ -433,40 +434,46 @@ void StartDefaultTask(void *argument)
   /* USER CODE BEGIN 5 */
     RTC_TimeTypeDef nTime;
 
-    nTime.Hours = 0x0;
-    nTime.Minutes = 0x0;
-    nTime.Seconds = 0x0;
-    //HAL_RTC_SetTime(&hrtc,&nTime,RTC_FORMAT_BIN);
-    HAL_RTC_SetTime(&hrtc,&nTime,RTC_FORMAT_BCD);
+    //nTime.Hours = 0x0;	//Почему-то показывает на 1 час больше
+    nTime.Hours = 23;
+    nTime.Minutes = 0;
+    nTime.Seconds = 0;	//Почему-то секунды считаются больше 60-ти (замечал 64 и более)
+    HAL_RTC_SetTime(&hrtc,&nTime,RTC_FORMAT_BIN);
+    //HAL_RTC_SetTime(&hrtc,&nTime,RTC_FORMAT_BCD);
 
     /* Infinite loop */
     for (;;)
 	{
-	HAL_GPIO_TogglePin(LD4_GPIO_Port, LD4_Pin);
-	LED_State = HAL_GPIO_ReadPin(LD4_GPIO_Port, LD4_Pin);
 
 	 // Получаем время работы программы в часовом формате:
-	//HAL_RTC_GetTime(&hrtc,&nTime,RTC_FORMAT_BIN);
-	HAL_RTC_GetTime(&hrtc,&nTime,RTC_FORMAT_BCD);
+	HAL_RTC_GetTime(&hrtc,&nTime,RTC_FORMAT_BIN);
+	//HAL_RTC_GetTime(&hrtc,&nTime,RTC_FORMAT_BCD);
 
+	//Переменные для проверки в режиме отладки:
+	/*
 	v_Hours = nTime.Hours;
 	v_Minutes = nTime.Minutes;
 	v_Seconds = nTime.Seconds;
+	*/
+	printf("Time--%d:%d:%d\r\n",nTime.Hours,nTime.Minutes,nTime.Seconds);	//Для SWO
 
-	printf("Time--%d:%d:%d\r\n",nTime.Hours,nTime.Minutes,nTime.Seconds);
-
+	//Для USB:
 	snprintf(str1, sizeof(str1), "Time %d:%d:%d\n", nTime.Hours, nTime.Minutes, nTime.Seconds);
 	HAL_UART_Transmit(&huart2, (uint8_t*)str1, strlen(str1), 1000);
 
-	osDelay(100);
+	//osDelay(100);
+
+	HAL_GPIO_TogglePin(LD4_GPIO_Port, LD4_Pin);
+	LED_State = HAL_GPIO_ReadPin(LD4_GPIO_Port, LD4_Pin);
 
 	//snprintf в stm32:
 	//https://eax.me/stm32-spi-flash/
-	snprintf(str1, sizeof(str1), "UART: RTOS osProgTimer\n\r");
+	//snprintf(str1, sizeof(str1), "UART: RTOS osProgTimer\n\r");
 	//https://istarik.ru/blog/stm32/113.html
-	HAL_UART_Transmit(&huart2, (uint8_t*) str1, strlen(str1), 100);
-	printf("printf: LED_State = %d\n\r",LED_State);
-	puts("RTOS (puts): режим LED\n\r");
+	//HAL_UART_Transmit(&huart2, (uint8_t*) str1, strlen(str1), 100);
+
+	//printf("printf: LED_State = %d\n\r",LED_State);
+	//puts("RTOS (puts): режим LED\n\r");
 	//puts("puts: режим Timer1 = %lu\n\r",tim_cnt); //так не работает!
 
 	osDelay(T_LED);
