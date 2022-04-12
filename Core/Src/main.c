@@ -6,19 +6,43 @@
   ******************************************************************************
   * @attention
   *
-  *22мар22
+  * 22мар22
   * @Biriuk
   * peotr60@mail.ru
   *
   * Nucleo_git
   * Изучение микроконтроллера STM32 в среде STM32CubeIDE с помощью библиотеки HAL
   * с использованием отладочной платы NUCLEO-L452RE-P
-  *
-  * Рассмотрен многозадачность в среде CMSIS-RTOS2
-  * В данном случае корпоративная многозадачность (co-operative multitasking)
-  *
-  * Это код сохраняеется в GitHub по адресу:
+  * 
+  * !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  * ВНИМАНИЕ!
+  * При использовании RTC в библиотеке HAL имеется серьёзный баг, который можно обойти следующим образом:
+  * В файле stm32l4xx_hal_rtc.c (Drivers / Src / stm32l4xx_hal_rtc.c) закомментировать строку:
+  * 
+  * 1560	// sTime->SubSeconds = (uint32_t)(hrtc->Instance->SSR);
+  * 
+  * При этом следует иметь в виду, что каждый раз после пересборки проекта придётся каждый раз
+  * закоментировать эту строку вручную.
+  * Подробнее см. README.md
+  * !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  * 
+  * Ветка multutasking, на которой расположен код для изучения многозадачности,
+  * сохраняемая в GitHub по адресу:
   * https://github.com/Peotr-B/Nucleo_git.git
+  *
+  * Рассмотрена многозадачность в среде CMSIS-RTOS2
+  * В данном случае корпоративная многозадачность (co-operative multitasking)
+  * ВНИМАНИЕ!
+  * В ходе изучения корпоративной многозадачности выяснил, что применять её можно только
+  * в случае крайней необходимости или для фрагментов задач с коротким временным интервалом
+  * с применением выесняющей многозадачности, но использованием функций типа
+  * taskENTER_CRITICAL() --- taskEXIT_CRITICAL() и vTaskSuspendAll() --- xTaskResumeAll().
+  * Подробнее можно прочитать здесь:
+  * [4.2. Критические секции и приостановка шедулера]
+  * http://microsin.net/programming/arm/freertos-part4.html
+  *
+  * Поэтому, в данном примере решил использовать мьютексы для затратных по времени задач
+  * Подробнее см. в README.md
   *
   * За основу взят материал:
   * STM32 с нуля. FreeRTOS. Кооперативная многозадачность
@@ -35,12 +59,20 @@
   * [STM32L4] Очередь сообщений FreeRTOS для приема и отправки трех последовательных портов
   * https://russianblogs.com/article/88161192459/
   *
+  * Использование семафоров и мьютексов в FreeRTOS на Arduino Uno
+  * https://microkontroller.ru/arduino-projects/ispolzovanie-semaforov-i-myuteksov-v-freertos-na-arduino-uno/
+  *
+  * Старт ARM. RTOS часть 5-ая. Мьютексы
+  * https://www.mcu.by/%D1%81%D1%82%D0%B0%D1%80%D1%82-arm-rtos-%D1%87%D0%B0%D1%81%D1%82%D1%8C-5-%D0%B0%D1%8F-%D0%BC%D1%8C%D1%8E%D1%82%D0%B5%D0%BA%D1%81%D1%8B/
+  *
   * Использование CMSIS-RTOS
   * https://russianblogs.com/article/8958290203/
   *
   * FreeRTOS Приоритизация и алгоритмы управления диспетчером задач. Вытесняющий и кооперативный режимы
   * https://www.youtube.com/watch?v=VuyL0sCVPk8
   *
+  * FreeRTOS: практическое применение, часть 4 (управление ресурсами)
+  * http://microsin.net/programming/arm/freertos-part4.html
   *
   * Ещё см. READMY.md
   *
@@ -62,11 +94,19 @@
 /* USER CODE BEGIN Includes */
 #include "string.h" // это для функции strlen()
 #include <stdio.h>
+#include "stdbool.h" //для булевских функций
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-
+/* Определение типа для структуры, которая будет передаваться через очередь. */
+typedef struct
+{
+    char cSource[128];
+    //unsigned char ucValue;
+    char ucValue;
+  //uint8_t ucSource;
+} xData;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -81,6 +121,8 @@
 /* Private variables ---------------------------------------------------------*/
  RTC_HandleTypeDef hrtc;
 
+TIM_HandleTypeDef htim3;
+
 UART_HandleTypeDef huart2;
 
 /* Definitions for defaultTask */
@@ -90,12 +132,63 @@ const osThreadAttr_t defaultTask_attributes = {
   .stack_size = 256 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
+/* Definitions for BtnTask */
+osThreadId_t BtnTaskHandle;
+const osThreadAttr_t BtnTask_attributes = {
+  .name = "BtnTask",
+  .stack_size = 256 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+/* Definitions for MonitorTask */
+osThreadId_t MonitorTaskHandle;
+const osThreadAttr_t MonitorTask_attributes = {
+  .name = "MonitorTask",
+  .stack_size = 512 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+/* Definitions for PWM_Task */
+osThreadId_t PWM_TaskHandle;
+const osThreadAttr_t PWM_Task_attributes = {
+  .name = "PWM_Task",
+  .stack_size = 256 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+/* Definitions for INGPIO_Task */
+osThreadId_t INGPIO_TaskHandle;
+const osThreadAttr_t INGPIO_Task_attributes = {
+  .name = "INGPIO_Task",
+  .stack_size = 256 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+/* Definitions for GetQuTask */
+osThreadId_t GetQuTaskHandle;
+const osThreadAttr_t GetQuTask_attributes = {
+  .name = "GetQuTask",
+  .stack_size = 512 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+/* Definitions for QueueData */
+osMessageQueueId_t QueueDataHandle;
+const osMessageQueueAttr_t QueueData_attributes = {
+  .name = "QueueData"
+};
+/* Definitions for MutexMonitor */
+osMutexId_t MutexMonitorHandle;
+const osMutexAttr_t MutexMonitor_attributes = {
+  .name = "MutexMonitor"
+};
 /* USER CODE BEGIN PV */
-char str1[64];
+char str1[128];
+//unsigned char str2[256];
+char str2[258];	//ВНИМАНИЕ! 256 + 2 на символы \r\n!!!
 int LED_State = 0;
 int T_LED = 200;
+int Btn_State = 0;
+int Btn_State_temp = 0;
 //int v_Hours, v_Minutes, v_Seconds;	//Переменные для проверки в режиме отладки
-
+uint32_t i, d;
+//bool P_IN = 0;
+int P_IN = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -103,7 +196,13 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_RTC_Init(void);
+static void MX_TIM3_Init(void);
 void StartDefaultTask(void *argument);
+void StartBtnTask(void *argument);
+void StartMonitorTask(void *argument);
+void StartPWM_Task(void *argument);
+void StartINGPIO_Task(void *argument);
+void StartGetQuTask(void *argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -144,12 +243,17 @@ int main(void)
   MX_GPIO_Init();
   MX_USART2_UART_Init();
   MX_RTC_Init();
+  MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
+  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
 
   /* USER CODE END 2 */
 
   /* Init scheduler */
   osKernelInitialize();
+  /* Create the mutex(es) */
+  /* creation of MutexMonitor */
+  MutexMonitorHandle = osMutexNew(&MutexMonitor_attributes);
 
   /* USER CODE BEGIN RTOS_MUTEX */
   /* add mutexes, ... */
@@ -163,6 +267,10 @@ int main(void)
   /* start timers, add new ones, ... */
   /* USER CODE END RTOS_TIMERS */
 
+  /* Create the queue(s) */
+  /* creation of QueueData */
+  QueueDataHandle = osMessageQueueNew (3, sizeof(xData), &QueueData_attributes);
+
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
   /* USER CODE END RTOS_QUEUES */
@@ -170,6 +278,21 @@ int main(void)
   /* Create the thread(s) */
   /* creation of defaultTask */
   defaultTaskHandle = osThreadNew(StartDefaultTask, NULL, &defaultTask_attributes);
+
+  /* creation of BtnTask */
+  BtnTaskHandle = osThreadNew(StartBtnTask, NULL, &BtnTask_attributes);
+
+  /* creation of MonitorTask */
+  MonitorTaskHandle = osThreadNew(StartMonitorTask, NULL, &MonitorTask_attributes);
+
+  /* creation of PWM_Task */
+  PWM_TaskHandle = osThreadNew(StartPWM_Task, NULL, &PWM_Task_attributes);
+
+  /* creation of INGPIO_Task */
+  INGPIO_TaskHandle = osThreadNew(StartINGPIO_Task, NULL, &INGPIO_Task_attributes);
+
+  /* creation of GetQuTask */
+  GetQuTaskHandle = osThreadNew(StartGetQuTask, NULL, &GetQuTask_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -314,6 +437,65 @@ static void MX_RTC_Init(void)
 }
 
 /**
+  * @brief TIM3 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM3_Init(void)
+{
+
+  /* USER CODE BEGIN TIM3_Init 0 */
+
+  /* USER CODE END TIM3_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+  TIM_OC_InitTypeDef sConfigOC = {0};
+
+  /* USER CODE BEGIN TIM3_Init 1 */
+
+  /* USER CODE END TIM3_Init 1 */
+  htim3.Instance = TIM3;
+  htim3.Init.Prescaler = 0;
+  htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim3.Init.Period = 65535;
+  htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim3, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_TIM_PWM_Init(&htim3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim3, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sConfigOC.OCMode = TIM_OCMODE_PWM1;
+  sConfigOC.Pulse = 0;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+  if (HAL_TIM_PWM_ConfigChannel(&htim3, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM3_Init 2 */
+
+  /* USER CODE END TIM3_Init 2 */
+  HAL_TIM_MspPostInit(&htim3);
+
+}
+
+/**
   * @brief USART2 Initialization Function
   * @param None
   * @retval None
@@ -364,29 +546,13 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, SMPS_EN_Pin|SMPS_V1_Pin|SMPS_SW_Pin, GPIO_PIN_RESET);
-
-  /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(LD4_GPIO_Port, LD4_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pin : B1_Pin */
-  GPIO_InitStruct.Pin = B1_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(B1_GPIO_Port, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : SMPS_EN_Pin SMPS_V1_Pin SMPS_SW_Pin */
-  GPIO_InitStruct.Pin = SMPS_EN_Pin|SMPS_V1_Pin|SMPS_SW_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : SMPS_PG_Pin */
-  GPIO_InitStruct.Pin = SMPS_PG_Pin;
+  /*Configure GPIO pins : Btn_Blue_Pin IN_PWM_Pin */
+  GPIO_InitStruct.Pin = Btn_Blue_Pin|IN_PWM_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
-  HAL_GPIO_Init(SMPS_PG_GPIO_Port, &GPIO_InitStruct);
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
   /*Configure GPIO pin : LD4_Pin */
   GPIO_InitStruct.Pin = LD4_Pin;
@@ -432,36 +598,40 @@ int __io_putchar(int ch)
 void StartDefaultTask(void *argument)
 {
   /* USER CODE BEGIN 5 */
-    RTC_TimeTypeDef nTime;
+    /*
+     RTC_TimeTypeDef nTime;
 
-    //nTime.Hours = 0x0;	//Почему-то показывает на 1 час больше
-    nTime.Hours = 23;
-    nTime.Minutes = 0;
-    nTime.Seconds = 0;	//Почему-то секунды считаются больше 60-ти (замечал 64 и более)
-    HAL_RTC_SetTime(&hrtc,&nTime,RTC_FORMAT_BIN);
-    //HAL_RTC_SetTime(&hrtc,&nTime,RTC_FORMAT_BCD);
-
+     //nTime.Hours = 0x0;	//Почему-то показывает на 1 час больше
+     nTime.Hours = 23;
+     nTime.Minutes = 0;
+     nTime.Seconds = 0;	//Почему-то секунды считаются больше 60-ти (замечал 64 и более)
+     HAL_RTC_SetTime(&hrtc,&nTime,RTC_FORMAT_BIN);
+     //HAL_RTC_SetTime(&hrtc,&nTime,RTC_FORMAT_BCD);
+     */
     /* Infinite loop */
     for (;;)
 	{
-
+	/*
 	 // Получаем время работы программы в часовом формате:
-	HAL_RTC_GetTime(&hrtc,&nTime,RTC_FORMAT_BIN);
-	//HAL_RTC_GetTime(&hrtc,&nTime,RTC_FORMAT_BCD);
+	 HAL_RTC_GetTime(&hrtc,&nTime,RTC_FORMAT_BIN);
+	 //HAL_RTC_GetTime(&hrtc,&nTime,RTC_FORMAT_BCD);
+	 */
 
 	//Переменные для проверки в режиме отладки:
 	/*
-	v_Hours = nTime.Hours;
-	v_Minutes = nTime.Minutes;
-	v_Seconds = nTime.Seconds;
-	*/
-	printf("Time--%d:%d:%d\r\n",nTime.Hours,nTime.Minutes,nTime.Seconds);	//Для SWO
+	 v_Hours = nTime.Hours;
+	 v_Minutes = nTime.Minutes;
+	 v_Seconds = nTime.Seconds;
+	 */
+	/*
+	 printf("Time--%d:%d:%d\r\n",nTime.Hours,nTime.Minutes,nTime.Seconds);	//Для SWO
 
-	//Для USB:
-	snprintf(str1, sizeof(str1), "Time %d:%d:%d\n", nTime.Hours, nTime.Minutes, nTime.Seconds);
-	HAL_UART_Transmit(&huart2, (uint8_t*)str1, strlen(str1), 1000);
+	 //Для USB:
+	 snprintf(str1, sizeof(str1), "Time %d:%d:%d\n", nTime.Hours, nTime.Minutes, nTime.Seconds);
+	 HAL_UART_Transmit(&huart2, (uint8_t*)str1, strlen(str1), 1000);
 
-	//osDelay(100);
+	 //osDelay(100);
+	 */
 
 	HAL_GPIO_TogglePin(LD4_GPIO_Port, LD4_Pin);
 	LED_State = HAL_GPIO_ReadPin(LD4_GPIO_Port, LD4_Pin);
@@ -477,8 +647,239 @@ void StartDefaultTask(void *argument)
 	//puts("puts: режим Timer1 = %lu\n\r",tim_cnt); //так не работает!
 
 	osDelay(T_LED);
+
 	}
   /* USER CODE END 5 */
+}
+
+/* USER CODE BEGIN Header_StartBtnTask */
+/**
+* @brief Function implementing the BtnTask thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartBtnTask */
+void StartBtnTask(void *argument)
+{
+  /* USER CODE BEGIN StartBtnTask */
+    xData msg;
+    /* Infinite loop */
+    for (;;)
+	{
+	//if (HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_13) == GPIO_PIN_SET)
+	if (HAL_GPIO_ReadPin(GPIOC, Btn_Blue_Pin) == GPIO_PIN_SET)
+	    {
+	    osDelay(50);	//антидребезг
+
+	    if (HAL_GPIO_ReadPin(GPIOC, Btn_Blue_Pin) == GPIO_PIN_SET)
+		{
+		//Btn_State = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_13);
+		Btn_State = HAL_GPIO_ReadPin(GPIOC, Btn_Blue_Pin);
+		T_LED = 250;
+		}
+	    }
+
+	if (HAL_GPIO_ReadPin(GPIOC, Btn_Blue_Pin) == GPIO_PIN_RESET)
+	    {
+	    osDelay(50);	//антидребезг
+
+	    if (HAL_GPIO_ReadPin(GPIOC, Btn_Blue_Pin) == GPIO_PIN_RESET)
+		{
+		Btn_State = HAL_GPIO_ReadPin(GPIOC, Btn_Blue_Pin);
+		T_LED = 500;
+		}
+	    }
+
+	msg.ucValue = Btn_State;
+	strcpy(msg.cSource, "Button = ");
+	//osMessageQueuePut(QueueDataHandle, &msg, 0, osWaitForever);
+	osMessageQueuePut(QueueDataHandle, &msg, 0, 100);
+
+	//osDelay(1);
+	osThreadYield();
+	}
+  /* USER CODE END StartBtnTask */
+}
+
+/* USER CODE BEGIN Header_StartMonitorTask */
+/**
+* @brief Function implementing the MonitorTask thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartMonitorTask */
+void StartMonitorTask(void *argument)
+{
+  /* USER CODE BEGIN StartMonitorTask */
+    //Это критическая секция!
+    //xData msg;
+    //osStatus_t status;
+    RTC_TimeTypeDef nTime;
+
+    //nTime.Hours = 0x0;	//Почему-то показывает на 1 час больше
+    nTime.Hours = 23;
+    nTime.Minutes = 0;
+    nTime.Seconds = 0;//Почему-то секунды считаются больше 60-ти (замечал 64 и более)
+    //HAL_RTC_SetTime(&hrtc, &nTime, RTC_FORMAT_BIN);
+    //HAL_RTC_SetTime(&hrtc,&nTime,RTC_FORMAT_BCD);
+    /* Infinite loop */
+    for (;;)
+	{
+	if (osMutexAcquire(MutexMonitorHandle, osWaitForever) == osOK)
+	    {
+	    // Получаем время работы программы в часовом формате:
+	    if (HAL_RTC_GetTime(&hrtc, &nTime, RTC_FORMAT_BIN) != HAL_OK)
+			{
+				printf("HAL_RTC_GetTime failed");
+				Error_Handler();
+			}
+
+			//HAL_RTC_GetTime(&hrtc, &nTime, RTC_FORMAT_BIN);
+			//HAL_RTC_GetDate(&hrtc, &nDate, FORMAT_BIN);
+			//HAL_RTC_GetTime(&hrtc,&nTime,RTC_FORMAT_BCD);
+
+			//Переменные для проверки в режиме отладки:
+			/*
+			 v_Hours = nTime.Hours;
+			 v_Minutes = nTime.Minutes;
+			 v_Seconds = nTime.Seconds;
+			 */
+
+			//uint ICR = (uint32_t)(hrtc.Instance->CR);
+			//uint ICR = (uint32_t)(RTC->CR);
+			//printf("CR =  %u\r\n", ICR);
+			printf("Time--%d:%d:%d\r\n", nTime.Hours, nTime.Minutes,
+					nTime.Seconds);		//Для SWO
+
+			//Для USB:
+			snprintf(str1, sizeof(str1), "Time %d:%d:%d\n", nTime.Hours,
+					nTime.Minutes, nTime.Seconds);
+			HAL_UART_Transmit(&huart2, (uint8_t*) str1, strlen(str1),
+			HAL_MAX_DELAY);
+
+			//status = osMessageQueueGet(QueueDataHandle, &msg, NULL, osWaitForever);
+			//status = osMessageQueueGet(QueueDataHandle, &msg, NULL, 100);
+
+			//if (status == osOK)
+			/* Данные были успешно приняты из очереди, вывод принятого значения
+			 и источника этого значения. */
+			/*
+			 {
+			 printf("%s:%u\r\n", msg.cSource, msg.ucValue);	//Для SWO
+			 //snprintf(str2, sizeof(str2), "%s:%u\r\n", msg.cSource, msg.ucValue);//Для USB
+			 snprintf(str2, sizeof(str2), "%s:%u\r\n", msg.cSource, msg.ucValue);//Для USB
+			 //HAL_UART_Transmit(&huart2, (uint8_t*) str2, strlen(str2), osWaitForever);
+			 HAL_UART_Transmit(&huart2, (uint8_t*) str2, strlen(str2),
+			 HAL_MAX_DELAY); //проверить этот вариант
+			 */
+			//возможно, вариант с HAL_MAX_DELAY более логичен, т.к. предотвращает теоритеически
+			//возможное зависание программы
+			//}
+	    osMutexRelease(MutexMonitorHandle);
+	    }
+
+	//osDelay(1);
+	osThreadYield();
+	}
+  /* USER CODE END StartMonitorTask */
+}
+
+/* USER CODE BEGIN Header_StartPWM_Task */
+/**
+* @brief Function implementing the PWM_Task thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartPWM_Task */
+void StartPWM_Task(void *argument)
+{
+  /* USER CODE BEGIN StartPWM_Task */
+  /* Infinite loop */
+  for(;;)
+  {
+      for (i = 0; i <= 131072; i++)
+		{
+			if (i < 65536)
+				TIM3->CCR1 = i;
+			else if ((i > 65535) && (i < 131072))
+				TIM3->CCR1 = 131071 - i;
+		}
+      //osDelay(50);
+      osThreadYield();
+  }
+  /* USER CODE END StartPWM_Task */
+}
+
+/* USER CODE BEGIN Header_StartINGPIO_Task */
+/**
+* @brief Function implementing the INGPIO_Task thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartINGPIO_Task */
+void StartINGPIO_Task(void *argument)
+{
+  /* USER CODE BEGIN StartINGPIO_Task */
+    xData msg;
+  /* Infinite loop */
+  for(;;)
+  {
+      /*
+      if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_8) != P_IN)
+      	    {
+      	P_IN = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_8);
+      	    }
+      */
+      msg.ucValue = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_8);
+      strcpy(msg.cSource,"Port 8");
+      osMessageQueuePut (QueueDataHandle, &msg, 0, 100);
+
+    //osDelay(1);
+    osThreadYield();
+  }
+  /* USER CODE END StartINGPIO_Task */
+}
+
+/* USER CODE BEGIN Header_StartGetQuTask */
+/**
+* @brief Function implementing the GetQuTask thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartGetQuTask */
+void StartGetQuTask(void *argument)
+{
+  /* USER CODE BEGIN StartGetQuTask */
+    xData msg;
+    osStatus_t status;
+    /* Infinite loop */
+    for (;;)
+	{
+	if (osMutexAcquire(MutexMonitorHandle, osWaitForever) == osOK)
+	    {
+	    status = osMessageQueueGet(QueueDataHandle, &msg, NULL,
+	    100);
+
+	    if (status == osOK)
+	    /* Данные были успешно приняты из очереди, вывод принятого значения
+	     и источника этого значения. */
+		{
+		printf("%s:%u\r\n", msg.cSource, msg.ucValue);	//Для SWO
+		//snprintf(str2, sizeof(str2), "%s:%u\r\n", msg.cSource, msg.ucValue);//Для USB
+		snprintf(str2, sizeof(str2), "%s:%u\r\n", msg.cSource,
+			msg.ucValue);	    //Для USB
+		//HAL_UART_Transmit(&huart2, (uint8_t*) str2, strlen(str2), osWaitForever);
+		HAL_UART_Transmit(&huart2, (uint8_t*) str2, strlen(str2),
+		HAL_MAX_DELAY); //проверить этот вариант
+		//возможно, вариант с HAL_MAX_DELAY более логичен, т.к. предотвращает теоритеически
+		//возможное зависание программы
+		}
+	    osMutexRelease(MutexMonitorHandle);
+	    }
+	//osDelay(1);
+	osThreadYield();
+	}
+  /* USER CODE END StartGetQuTask */
 }
 
 /**
