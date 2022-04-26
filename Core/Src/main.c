@@ -6,7 +6,7 @@
   ******************************************************************************
   * @attention
   *
-  *26янв22
+  * 26апр22
   * @Biriuk
   * peotr60@mail.ru
   *
@@ -14,11 +14,45 @@
   * Изучение микроконтроллера STM32 в среде STM32CubeIDE с помощью библиотеки HAL
   * с использованием отладочной платы NUCLEO-L452RE-P
   *
-  * Это исходный код. От него будут отходить различные ветки, сохраняемые в
-  * GitHub по адресу:
+  * !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  * ВНИМАНИЕ!
+  * При использовании RTC в библиотеке HAL имеется серьёзный баг, который можно обойти следующим образом:
+  * В файле stm32l4xx_hal_rtc.c (Drivers / Src / stm32l4xx_hal_rtc.c) закомментировать строку:
+  *
+  * 1560	// sTime->SubSeconds = (uint32_t)(hrtc->Instance->SSR);
+  *
+  * При этом следует иметь в виду, что каждый раз после пересборки проекта придётся каждый раз
+  * закоментировать эту строку вручную.
+  * Подробнее см. README.md
+  * !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  *
+  * Ветка RTOS_ISR, на которой расположен код для изучения прерываний в среде RTOS,
+  * сохраняемая в GitHub по адресу:
   * https://github.com/Peotr-B/Nucleo_git.git
   *
   * Ещё см. READMY.md
+  *
+  * За основу взят материал:
+  *
+  * STM32 от Булкина. Урок 1: Вводный, где мы немножко похулиганим
+  * https://pikabu.ru/story/stm32_ot_bulkina_urok_1_vvodnyiy_gde_myi_nemnozhko_pokhuliganim_5526124
+  *
+  * а также:
+  *
+  * FreeRTOS для чайников. Краткое описание
+  * http://easyelectronics.ru/freertos_manual.html
+  *
+  * STM Урок 116. FreeRTOS. Прерывания. Очереди в прерываниях
+  * https://narodstream.ru/stm-urok-116-freertos-preryvaniya-ocheredi-v-preryvaniyax-chast-1/
+  *
+  * Используем светофоры в системе FreeRTOS на базе платы Arduino Nano в среде программирования Arduino IDE
+  * https://texnohelp.com/arduino_freertos_lesson3/
+  *
+  * Осваиваем FreeRtos на примере приема-передачи по UART
+  * https://kkmspb.ru/development/microcontrollers/UART/ISR_UART_Atollic_STM32F407VE.php
+  *
+  * Прерывания UART в FreeRTOS с драйвером STM32 HAL
+  * https://question-it.com/questions/3532617/preryvanija-uart-v-freertos-s-drajverom-stm32-hal
   *
   * Copyright (c) 2022 STMicroelectronics.
   * All rights reserved.
