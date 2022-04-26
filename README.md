@@ -244,6 +244,10 @@ int __io_putchar(int ch)
  
  FreeRTOS: практическое применение, часть 4 (управление ресурсами) 
  http://microsin.net/programming/arm/freertos-part4.html
+ 
+ STM32 от Булкина. Урок 1: Вводный, где мы немножко похулиганим
+ https://pikabu.ru/story/stm32_ot_bulkina_urok_1_vvodnyiy_gde_myi_nemnozhko_pokhuliganim_5526124
+ 
  -------------------------------------------------------------------------------------
  
  В ходе разработки использовалось:
